@@ -6,7 +6,7 @@ accelerate launch --num_processes 1 --mixed_precision bf16 steve1/training/train
 --out_weights data/weights/steve1/trained_with_script.weights \
 --trunc_t 64 \
 --T 640 \
---batch_size 12 \
+--batch_size 4 \
 --gradient_accumulation_steps 4 \
 --num_workers 4 \
 --weight_decay 0.039428 \

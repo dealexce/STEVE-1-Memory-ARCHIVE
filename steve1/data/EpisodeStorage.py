@@ -216,3 +216,9 @@ class EpisodeStorage:
             return os.path.basename(self.episode_dirpath).split('term')[1].split('_')[0]
         else:
             return 'Incomplete'
+
+class EpisodeEmbedCache:
+    def __init__(self, episode_dirs):
+        self.cache = {}
+        for epdir in episode_dirs:
+            

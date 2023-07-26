@@ -13,9 +13,11 @@ import matplotlib.pyplot as plt
 from steve1.VPT.agent import AGENT_RESOLUTION, resize_image, ActionTransformer, \
     ACTION_TRANSFORMER_KWARGS, CameraHierarchicalMapping
 
+import torch as th
+
 NONE_EMBED_OFFSET = 15
 
-def env_obs_to_agent(frame, embed):
+def env_obs_to_agent(frame, embed, t):
     """
     Turn observation from MineRL environment into model's observation
 
@@ -25,6 +27,7 @@ def env_obs_to_agent(frame, embed):
     return {
         "img": agent_input,
         "mineclip_embed": embed,
+        "t": t,
     }
 
 
@@ -55,7 +58,7 @@ def env_action_to_agent(minerl_action_transformed):
     return action
 
 
-def get_episode_chunk(episode_chunk, min_btwn_goals, max_btwn_goals, p_uncond):
+def get_episode_chunk(episode_chunk, min_btwn_goals, max_btwn_goals, p_uncond, len_memory):
     """Get a chunk of an episode as described by episode_chunk.
 
     Args:
@@ -110,8 +113,12 @@ def get_episode_chunk(episode_chunk, min_btwn_goals, max_btwn_goals, p_uncond):
 
     for t in range(start_timestep, end_timestep):
         frame = frames[t]
-
-        obs = env_obs_to_agent(frame, embeds_per_timestep[t].reshape(1, -1))
+        act_len_memory = min(t,len_memory)
+        memory = th.tensor(np.array(embeds_per_timestep[t-act_len_memory:t])).squeeze()
+        reverse_perm = list(range(memory.dim() - 1, -1, -1))
+        memory = th.nn.functional.pad(memory.permute(reverse_perm), (len_memory-act_len_memory,0), 'constant', 0)
+        memory = memory.permute(reverse_perm)
+        obs = env_obs_to_agent(frame, embeds_per_timestep[t].reshape(1, -1), memory[None,:])
         obs_list.append(obs)
 
         action = env_action_to_agent(all_actions[t])
@@ -133,7 +140,7 @@ def batch_if_numpy(xs):
 
 class MinecraftDataset(Dataset):
     def __init__(self, episode_dirnames, T, min_btwn_goals, max_btwn_goals,
-                 p_uncond=0.1, limit=None, every_nth=None):
+                 p_uncond=0.1, limit=None, every_nth=None, len_memory=512):
         """A dataset of Minecraft episodes.
 
         Args:
@@ -159,6 +166,7 @@ class MinecraftDataset(Dataset):
         self.max_btwn_goals = max_btwn_goals
         self.T = T
         self.p_uncond = p_uncond
+        self.len_memory = len_memory
 
     def __len__(self):
         return len(self.episode_chunks)
@@ -168,7 +176,8 @@ class MinecraftDataset(Dataset):
             get_episode_chunk(self.episode_chunks[idx], 
                               self.min_btwn_goals, 
                               self.max_btwn_goals,
-                              self.p_uncond)
+                              self.p_uncond,
+                              self.len_memory)
         return obs_np, actions_np, firsts_np
 
     def collate_fn(self, batch):

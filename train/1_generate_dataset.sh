@@ -1,3 +1,4 @@
+
 # This will download the dataset from OpenAI to a local directory and convert it to the format used by the code.
 
 OUTPUT_DIR_CONTRACTOR=data/dataset_contractor/
